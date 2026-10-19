@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "package": "dev.hl2craft.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "CameraMixin",
+    "ClientLevelAccessor",
+    "FramerateLimitTrackerMixin",
+    "GameRendererMixin",
+    "InputConstantsMixin",
+    "LevelExtractorMixin",
+    "LocalPlayerMixin",
+    "MinecraftMixin",
+    "MouseHandlerMixin",
+    "RenderSetupAccessor",
+    "RenderTypeAccessor",
+    "SpriteContentsAccessor",
+    "TextureAtlasAccessor",
+    "TextureBindingAccessor",
+    "TextureManagerAccessor",
+    "WindowMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

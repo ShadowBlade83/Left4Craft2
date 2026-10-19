@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "hl2craft",
+  "version": "${version}",
+  "name": "Left4Craft (HL2Craft port)",
+  "description": "Left 4 Dead 2 x Minecraft: Steve with Minecraft physics inside L4D2, building barricades the infected must break. Port of HL2Craft by ShadowBlade83 (Maga).",
+  "authors": ["ShadowBlade83", "Maga"],
+  "license": "CC-BY-NC-4.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.hl2craft.HL2Craft"],
+    "client": ["dev.hl2craft.client.HL2CraftClient"]
+  },
+  "mixins": [
+    "hl2craft.mixins.json",
+    { "config": "hl2craft.client.mixins.json", "environment": "client" }
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

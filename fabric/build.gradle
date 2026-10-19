@@ -1,0 +1,42 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+repositories {
+	mavenCentral()
+}
+
+loom {
+	splitEnvironmentSourceSets()
+	mods {
+		"hl2craft" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+	runs {
+		client {
+			programArgs "--width", "1920", "--height", "1080"
+			vmArgs "--enable-native-access=ALL-UNNAMED", "-Dleft4craft.map=c1m1_hotel"
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+	filesMatching("fabric.mod.json") { expand "version": version }
+}
+
+tasks.withType(JavaCompile).configureEach { it.options.release = 25 }
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}

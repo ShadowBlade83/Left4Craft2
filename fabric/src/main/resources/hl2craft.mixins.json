@@ -1,0 +1,37 @@
+{
+  "required": true,
+  "package": "dev.hl2craft.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "AbstractArrowMixin",
+    "BlockBehaviourMixin",
+    "BlockCollisionsMixin",
+    "BlockItemMixin",
+    "BlockPlaceContextMixin",
+    "EntityPickMixin",
+    "FallingBlockMixin",
+    "FlowingFluidMixin",
+    "ItemMixin",
+    "LevelMixin",
+    "MinecraftServerFlightMixin",
+    "MobMixin",
+    "PlayerMixin",
+    "ProjectileMixin",
+    "ProjectileUtilMixin",
+    "ServerExplosionMixin",
+    "ServerGamePacketListenerImplMixin",
+    "ServerPlayerGameModeMixin",
+    "ServerPlayerMixin",
+    "ThrownEnderpearlMixin",
+    "WalkNodeEvaluatorMixin",
+    "TorchBlockMixin",
+    "WallTorchBlockMixin",
+    "BaseFireBlockMixin",
+    "FireBlockMixin",
+    "FlintAndSteelItemMixin",
+    "BucketItemMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
