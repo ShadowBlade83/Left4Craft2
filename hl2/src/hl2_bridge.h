@@ -288,6 +288,7 @@ namespace hl2craft
 		DWORD m_lastActorScanTime = 0;
 		DWORD m_lastVScriptPoll = 0;
 		DWORD m_lastPuppetMs = 0;
+		DWORD m_lastVScriptCheck = 0;
 		DWORD m_lastSpacePress = 0;
 		bool m_lastSpaceKey = false;
 		bool m_lastLButton = false;

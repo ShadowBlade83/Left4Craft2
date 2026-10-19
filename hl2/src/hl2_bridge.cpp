@@ -558,6 +558,13 @@ namespace hl2craft
 			m_lastVScriptPoll = now;
 			PollVScript();
 		}
+		// A round restart (all survivors dead, "mission lost") respawns every entity on the same map, so the level
+		// change check above never fires: left4craft.nut's thinker is gone and the survivor gets its weapons and
+		// L4D2's HUD back. Re-include the script whenever its table or its thinker is missing.
+		if (now - m_lastVScriptCheck > 2000) {
+			m_lastVScriptCheck = now;
+			ExecCmd("script if (!(\"L4C\" in getroottable()) || Entities.FindByName(null, \"l4c_thinker\") == null) IncludeScript(\"left4craft\")");
+		}
 		if (now - m_lastActorScanTime > 50) {
 			m_lastActorScanTime = now;
 			ScanActors();
