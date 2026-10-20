@@ -76,19 +76,18 @@ function L4C::SetMoveType(p, t)
 	NetProps.SetPropInt(p, "movetype", t);
 }
 
-// The add-on moves the survivor with setpos while Minecraft owns movement: then it must not collide with anything
-// (its hull is wider than Steve's and the blockers stop survivors too), so it is a noclip puppet. Back to walking
-// when L4D2 takes over (ladder, vehicle, pinned, incapacitated).
-const L4C_MOVETYPE_NOCLIP = 8;
-
+// The add-on moves the survivor with setpos while Minecraft owns movement. It stays a walking player (the infected
+// neither chase nor hit a noclip survivor, so with noclip they did no damage at all) and only floats: near-zero
+// gravity so it doesn't sink between setpos frames. Normal gravity again when L4D2 takes over (ladder, vehicle,
+// pinned, incapacitated).
 function L4C::SetPuppet(on)
 {
 	local p = L4C.Host();
 	if (p == null || p.IsDead())
 		return;
-	local want = on ? L4C_MOVETYPE_NOCLIP : L4C_MOVETYPE_WALK;
-	if (NetProps.GetPropInt(p, "movetype") != want)
-		L4C.SetMoveType(p, want);
+	if (NetProps.GetPropInt(p, "movetype") != L4C_MOVETYPE_WALK)
+		L4C.SetMoveType(p, L4C_MOVETYPE_WALK);
+	p.SetGravity(on ? 0.0001 : 1.0);
 }
 
 // Steve's feet and velocity from Minecraft, every server frame the plugin has a new one.
@@ -352,7 +351,13 @@ function L4C::Events::OnGameEvent_player_hurt(params)
 {
 	// HL2Craft port: the add-on reads the survivor's health drop as Minecraft damage and mirrors Minecraft's health
 	// back (x5). Topping it up to 100 here (the first bridge's design) hid every hit: the infected did no damage.
-	if (L4C.portMode || !L4C.IsHost(params.userid) || L4C.dying)
+	if (L4C.portMode)
+	{
+		if (L4C.IsHost(params.userid))
+			printl("[left4craft] survivor hurt: " + params.dmg_health + " hp, now " + L4C.Host().GetHealth());
+		return;
+	}
+	if (!L4C.IsHost(params.userid) || L4C.dying)
 		return;
 	local p = L4C.Host();
 	local d = params.dmg_health;

@@ -969,9 +969,9 @@ namespace hl2craft
 		} else {
 			if (!m_mcPhysicsActive) {
 				m_mcPhysicsActive = true;
-				// Left4Craft: the survivor is a noclip puppet while Minecraft moves Steve. Its 32-unit hull is wider than
-				// Steve's 0.6 blocks, so against a placed block it overlapped the env_physics_blocker and Source pushed it
-				// out (stuck in blocks). Keys are swallowed in SubclassWndProc.
+				// Left4Craft: the survivor floats as a puppet (near-zero gravity, setpos each frame) while Minecraft moves
+				// Steve; it stays a walking player so the infected still chase and hit it (noclip made them do no
+				// damage). Keys are swallowed in SubclassWndProc.
 				ExecCmd("-forward; -back; -moveleft; -moveright; -jump; -duck; script L4C.SetPuppet(true)");
 				m_lastPuppetMs = GetTickCount();
 			}
@@ -1135,10 +1135,17 @@ namespace hl2craft
 		if (m_entityList && m_engineClient && !m_creative) {
 			void *pPlayer = GetLocalPlayerEntity();
 			int *pHealth = pPlayer ? l4d2::Netvar<int>(pPlayer, "m_iHealth") : nullptr;
+			static bool s_noHealthLogged = false;
+			if (pPlayer && !pHealth && !s_noHealthLogged) {
+				s_noHealthLogged = true;
+				DiagLog("damage: no m_iHealth netvar on the local player (class %s): L4D2 hits can't reach Minecraft", l4d2::ClassName(pPlayer));
+			}
 			if (pHealth && !IsBadReadPtr(pHealth, 4)) {
 				int curHp = *pHealth;
 				if (m_lastPlayerHl2Hp > 0 && curHp < m_lastPlayerHl2Hp) {
 					int dmg = m_lastPlayerHl2Hp - curHp;
+					DiagLog("damage: L4D2 health %d -> %d (%d), mc health %.1f, blocking %d, self-hit window %d",
+						m_lastPlayerHl2Hp, curHp, dmg, ms->health, mcBlocking ? 1 : 0, GetTickCount() < m_ignoreSelfDamageUntil ? 1 : 0);
 					bool blocked = false;
 					if (mcBlocking) {
 						constexpr float kDeg2Rad = 0.0174532925f;
@@ -1242,6 +1249,7 @@ namespace hl2craft
 							*(uint64_t*)(m_shmView + proto::kOffCollisionRing + proto::kColRingHeadOff) = head + 16;
 						}
 						PushInput(proto::kInHurt, 0, dmg * 4, 0); // L4D2 hp mirrors MC hp x5
+						DiagLog("damage: sent %d L4D2 hp to Minecraft (%.2f hearts of damage)", dmg, dmg / 5.0f / 2.0f);
 					}
 				}
 				m_lastPlayerHl2Hp = curHp;
@@ -1272,6 +1280,7 @@ namespace hl2craft
 				m_lastPlayerHl2Hp = targetHp;
 				char cmd[64];
 				snprintf(cmd, sizeof(cmd), "ent_fire !player sethealth %d", targetHp);
+				DiagLog("health mirror: Minecraft %.1f -> L4D2 sethealth %d", ms->health, targetHp);
 				ExecCmd(cmd);
 			}
 		}
