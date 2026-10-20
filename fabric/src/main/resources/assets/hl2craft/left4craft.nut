@@ -264,6 +264,16 @@ function L4C::Melee(dmg, reach)
 		target.TakeDamage(dmg, L4C_DMG_SLASH, p);
 }
 
+// A Minecraft hit on an L4D2 entity (the add-on found which one): damage it directly, the player as attacker.
+function L4C::HurtEnt(index, dmg, dmgType)
+{
+	local e = EntIndexToHScript(index);
+	local p = L4C.Host();
+	if (e == null || !e.IsValid() || e == p)
+		return;
+	e.TakeDamage(dmg.tofloat(), dmgType, p);
+}
+
 // Minecraft's item is in hand: keep L4D2's weapon from firing or shoving.
 function L4C::Slot(n, l4d2)
 {
@@ -421,6 +431,12 @@ function L4C::Think()
 	local now = Time();
 	local dt = now - L4C.lastThink;
 	L4C.lastThink = now;
+	// heartbeat for the add-on: without one for 6 s it runs the script again (after a round restart)
+	if (!("lastBeat" in L4C) || now - L4C.lastBeat >= 2.0 || now < L4C.lastBeat)
+	{
+		L4C.lastBeat <- now;
+		L4C.Emit("{\"t\":\"alive\"}");
+	}
 	local p = L4C.Host();
 	if (p != null && !L4C.portMode)
 	{

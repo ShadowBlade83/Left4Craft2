@@ -462,6 +462,7 @@ namespace hl2craft
 			m_knockbacks.clear();
 			D3D9WorldRender::Get().ClearSections();
 			ExecCmd("sv_cheats 1; script_execute left4craft");
+			m_lastVScriptAliveMs = GetTickCount();
 			if (m_shmView) {
 				uint64_t head = *(uint64_t*)(m_shmView + proto::kOffCollisionRing + proto::kColRingHeadOff);
 				uint64_t pos = head % proto::kColRingDataBytes;
@@ -502,6 +503,7 @@ namespace hl2craft
 			HookWindow();
 			PatchMinecraftJumpHeight();
 			ExecCmd("sv_cheats 1; mat_queue_mode 0; engine_no_focus_sleep 0; cl_drawhud 0; r_drawviewmodel 0; echo [left4craft] script_execute next; script_execute left4craft"); // Minecraft's HUD and hand replace L4D2's (both cheat cvars: not saved to config.cfg)
+			m_lastVScriptAliveMs = GetTickCount();
 			ScanCollision(pos, 10);
 		}
 		m_lastPosX = pos.x;
@@ -558,12 +560,17 @@ namespace hl2craft
 			m_lastVScriptPoll = now;
 			PollVScript();
 		}
-		// A round restart (all survivors dead, "mission lost") respawns every entity on the same map, so the level
-		// change check above never fires: left4craft.nut's thinker is gone and the survivor gets its weapons and
-		// L4D2's HUD back. Re-include the script whenever its table or its thinker is missing.
+		// A round restart (all survivors dead, "mission lost") respawns every entity on the same map without a level
+		// change, and left4craft.nut stops: the survivor got its weapons and L4D2's HUD back. The script beats every
+		// 2 s through out.txt (PollVScript); 6 s without a beat runs it again. (A `script if ("L4C" in ...)` check
+		// didn't work: the console mangles the quotes.)
 		if (now - m_lastVScriptCheck > 2000) {
 			m_lastVScriptCheck = now;
-			ExecCmd("script if (!(\"L4C\" in getroottable()) || Entities.FindByName(null, \"l4c_thinker\") == null) IncludeScript(\"left4craft\")");
+			if (m_lastVScriptAliveMs == 0 || now - m_lastVScriptAliveMs > 6000) {
+				m_lastVScriptAliveMs = now; // give it 6 s before the next try
+				DiagLog("vscript: no heartbeat, running script_execute left4craft");
+				ExecCmd("script_execute left4craft");
+			}
 		}
 		if (now - m_lastActorScanTime > 50) {
 			m_lastActorScanTime = now;
@@ -1248,8 +1255,10 @@ namespace hl2craft
 							MemoryBarrier();
 							*(uint64_t*)(m_shmView + proto::kOffCollisionRing + proto::kColRingHeadOff) = head + 16;
 						}
-						PushInput(proto::kInHurt, 0, dmg * 4, 0); // L4D2 hp mirrors MC hp x5
-						DiagLog("damage: sent %d L4D2 hp to Minecraft (%.2f hearts of damage)", dmg, dmg / 5.0f / 2.0f);
+						// L4D2 damage / 2.5 in Minecraft (IN_HURT carries x20): a common's 2-5 hp is 1-2 Minecraft hp.
+						// At /5 (0.5 hp minimum) Minecraft's food regeneration healed faster than a horde could hurt.
+						PushInput(proto::kInHurt, 0, dmg * 8, 0);
+						DiagLog("damage: sent %d L4D2 hp to Minecraft (%.2f hp)", dmg, dmg / 2.5f);
 					}
 				}
 				m_lastPlayerHl2Hp = curHp;
@@ -1980,27 +1989,15 @@ namespace hl2craft
 					}
 				}
 
-				m_ignoreSelfDamageUntil = nowHitMs + 250;
 				if (foundPos) {
 					if (applyDmg > 0) {
-						static uint32_t s_hurtCounter = 0;
-						uint32_t hurtId = ++s_hurtCounter;
-						int safeHp = (m_lastSyncedHp > 0) ? m_lastSyncedHp : 100;
 						bool isOnFire = (ev->flags & 4) != 0;
 						int dmgType = isOnFire ? 8 : (isCrit ? 64 : 128); // 8: DMG_BURN, 64: DMG_BLAST, 128: DMG_CLUB
-
-						char cmd[384];
-						snprintf(cmd, sizeof(cmd),
-							"ent_create point_hurt targetname mc_hrt_%u; "
-							"ent_fire mc_hrt_%u addoutput \"origin %.2f %.2f %.2f\"; "
-							"ent_fire mc_hrt_%u addoutput \"Damage %d\"; "
-							"ent_fire mc_hrt_%u addoutput \"DamageRadius 28\"; "
-							"ent_fire mc_hrt_%u addoutput \"DamageType %d\"; "
-							"ent_fire mc_hrt_%u Hurt; "
-							"ent_fire mc_hrt_%u Kill; "
-							"ent_fire !player sethealth %d",
-							hurtId, hurtId, entPos.x, entPos.y, entPos.z + 32.0f,
-							hurtId, applyDmg, hurtId, hurtId, dmgType, hurtId, hurtId, safeHp);
+						// Left4Craft: the hit goes straight to that entity through the VScript (TakeDamage with the
+						// player as attacker). HL2Craft's point_hurt splash didn't hurt L4D2's infected and could
+						// hit the player, so it also ignored the player's damage for 250 ms after each swing.
+						char cmd[96];
+						snprintf(cmd, sizeof(cmd), "script L4C.HurtEnt(%d,%d,%d)", targetEnt, applyDmg, dmgType);
 						ExecCmd(cmd);
 					}
 				} else {
@@ -2252,24 +2249,13 @@ namespace hl2craft
 					PushInput(99, isCrit ? 1 : 0, mcX100, mcY100, mcZ100);
 				}
 
-				m_ignoreSelfDamageUntil = nowHitMs + 250;
-				static uint32_t s_meleeCounter = 0;
-				uint32_t hurtId = ++s_meleeCounter;
-				int safeHp = (m_lastSyncedHp > 0) ? m_lastSyncedHp : 100;
-				int dmgType = isCrit ? 64 : 128;
-				char cmd[384];
-				snprintf(cmd, sizeof(cmd),
-					"ent_create point_hurt targetname mc_ml_%u; "
-					"ent_fire mc_ml_%u addoutput \"origin %.2f %.2f %.2f\"; "
-					"ent_fire mc_ml_%u addoutput \"Damage %d\"; "
-					"ent_fire mc_ml_%u addoutput \"DamageRadius 22\"; "
-					"ent_fire mc_ml_%u addoutput \"DamageType %d\"; "
-					"ent_fire mc_ml_%u Hurt; "
-					"ent_fire mc_ml_%u Kill; "
-					"ent_fire !player sethealth %d",
-					hurtId, hurtId, hitPos.x, hitPos.y, hitPos.z,
-					hurtId, clubDmg, hurtId, hurtId, dmgType, hurtId, hurtId, safeHp);
-				ExecCmd(cmd);
+				// Left4Craft: straight to the entity hit (see kEvHitActor); props are left to L4D2
+				if (hitEntIndex > 1) {
+					int dmgType = isCrit ? 64 : 128;
+					char cmd[96];
+					snprintf(cmd, sizeof(cmd), "script L4C.HurtEnt(%d,%d,%d)", hitEntIndex, clubDmg, dmgType);
+					ExecCmd(cmd);
+				}
 			}
 		}
 	}
@@ -2718,6 +2704,18 @@ namespace hl2craft
 		fclose(f);
 		buf[n] = 0;
 		if (strncmp(buf, "L4C1\n", 5) != 0 || !strstr(buf, "\nEND\n")) return; // still being written
+		// the script numbers its lines from 1 each time it starts (map load, round restart): a file whose numbers
+		// are all below the last one acknowledged comes from a restarted script
+		{
+			long long maxSeq = 0;
+			for (const char *q = buf + 5; q && *q; ) {
+				long long v = atoll(q);
+				if (v > maxSeq) maxSeq = v;
+				q = strchr(q, '\n');
+				if (q) ++q;
+			}
+			if (maxSeq > 0 && maxSeq < s_lastSeq) s_lastSeq = 0;
+		}
 		long long last = s_lastSeq;
 		for (char *line = buf + 5; line && *line; ) {
 			char *next = strchr(line, '\n');
@@ -2736,6 +2734,7 @@ namespace hl2craft
 			line = next;
 		}
 		if (last != s_lastSeq) {
+			m_lastVScriptAliveMs = GetTickCount(); // any new line from the script is a heartbeat
 			s_lastSeq = last;
 			char cmd[64];
 			snprintf(cmd, sizeof(cmd), "script L4C.Ack(%lld)", last);
